@@ -8,37 +8,33 @@ import io
 
 load_dotenv()
 
-# WINDOWS FIX — KEEP THIS LINE
+# WINDOWS FIX
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
+# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+# THIS LINE FIXES /docs AND /redoc ON RENDER
 app = FastAPI(
     title="Receipt Analyzer Pro – Protected & Live",
     description="Production-ready receipt AI API with API key protection",
     version="1.0",
-    docs_url="/docs",     # ← THIS ENABLES SWAGGER UI
-    redoc_url="/redoc"    # ← THIS ENABLES REDOC
+    docs_url="/docs",        # ← FORCE ENABLE SWAGGER
+    redoc_url="/redoc"       # ← FORCE ENABLE REDOC
 )
+# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-# ========================================
 # API KEY PROTECTION
-# ========================================
-API_KEY = "sakib-receipt-secret-2025"   # Change this anytime
+API_KEY = "sakib-receipt-secret-2025"
 
 async def verify_api_key(x_api_key: str = Header(...)):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-# ========================================
-# ROUTES
-# ========================================
-
 @app.get("/")
 async def home():
-    return {"message": "Receipt Analyzer API is LIVE → go to /docs"}
+    return {"message": "Receipt Analyzer API is LIVE → go to /docs or /redoc"}
 
-# 1. Simple GET (no protection – for testing)
 @app.get("/quick-insight")
 async def quick_insight(text: str = Query(..., description="Any text for AI")):
     prompt = PromptTemplate.from_template("Give 3 short bullet points about: {text}")
@@ -46,11 +42,10 @@ async def quick_insight(text: str = Query(..., description="Any text for AI")):
     result = chain.invoke({"text": text})
     return {"type": "GET", "input": text, "response": result.content}
 
-# 2. PROTECTED POST – Receipt Upload (requires API key)
 @app.post("/analyze-receipt")
 async def analyze_receipt(
     file: UploadFile = File(...),
-    api_key: str = Depends(verify_api_key)   # ← THIS PROTECTS THE ENDPOINT
+    api_key: str = Depends(verify_api_key)
 ):
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, "Only image files allowed")
@@ -60,18 +55,9 @@ async def analyze_receipt(
     ocr_text = pytesseract.image_to_string(image)
 
     prompt = PromptTemplate.from_template("""
-    Extract receipt data from this text and return ONLY valid JSON:
+    Extract and return ONLY valid JSON:
     {text}
-
-    Format:
-    {
-      "shop_name": "string or null",
-      "date": "YYYY-MM-DD or null",
-      "total_amount": number,
-      "items": [
-        {"name": "string", "price": number, "category": "Food|Electronics|Clothing|Other"}
-      ]
-    }
+    { "shop_name": "", "date": "YYYY-MM-DD or null", "total_amount": 0, "items": [{"name": "", "price": 0, "category": ""}] }
     """)
 
     chain = prompt | llm
@@ -81,15 +67,10 @@ async def analyze_receipt(
     try:
         data = json.loads(response.content)
     except:
-        data = {"error": "Failed to parse", "raw_ocr": ocr_text[:1000]}
+        data = {"raw_ocr": ocr_text[:1000]}
 
-    return {
-        "type": "POST (protected)",
-        "filename": file.filename,
-        "result": data
-    }
+    return {"type": "POST (protected)", "filename": file.filename, "result": data}
 
-# 3. GET with path parameter
 @app.get("/receipt/{id}/status")
 async def receipt_status(id: int):
     return {"receipt_id": id, "status": "processed", "total": 129.99}
