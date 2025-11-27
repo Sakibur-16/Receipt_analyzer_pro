@@ -14,7 +14,9 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 app = FastAPI(
     title="Receipt Analyzer Pro – Protected & Live",
     description="Production-ready receipt AI API with API key protection",
-    version="1.0"
+    version="1.0",
+    docs_url="/docs",     # ← THIS ENABLES SWAGGER UI
+    redoc_url="/redoc"    # ← THIS ENABLES REDOC
 )
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
