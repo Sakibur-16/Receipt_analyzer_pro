@@ -2,7 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 easyocr
+opencv-python-headless
 pillow
 langchain-openai
 python-dotenv
-torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
