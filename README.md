@@ -13,6 +13,10 @@ Perfect for:
 
 Clients pay $1500–$5000 for this exact feature on Upwork/Fiverr right now.
 
+# Smart Receipt Analyzer API  LIVE
+**Live URL →** https://receipt-analyzer-pro.onrender.com  
+**Interactive Docs →** https://receipt-analyzer-pro.onrender.com/docs
+
 ### Features
 - POST `/analyze-receipt` → Upload receipt image → Get structured data
 - GET `/quick-insight?text=...` → Simple text-to-insight (demo of GET requests)
