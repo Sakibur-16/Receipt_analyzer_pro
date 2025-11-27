@@ -17,8 +17,9 @@ app = FastAPI(
     title="Receipt Analyzer Pro – Protected & Live",
     description="Production-ready receipt AI API with API key protection",
     version="1.0",
-    docs_url="/docs",        # ← FORCE ENABLE SWAGGER
-    redoc_url="/redoc"       # ← FORCE ENABLE REDOC
+    openapi_url="/openapi.json",   # ← THIS LINE IS THE MAGIC FIX
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
