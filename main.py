@@ -2,28 +2,25 @@ from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Depends, He
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
-import pytesseract
+import easyocr
 from PIL import Image
 import io
-import easyocr
-reader = easyocr.Reader(['en'], gpu=False)
+import numpy as np
+import cv2
 
 load_dotenv()
 
-# WINDOWS FIX
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# EasyOCR – works perfectly on Render (no Tesseract needed)
+reader = easyocr.Reader(['en'], gpu=False)
 
-# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-# THIS LINE FIXES /docs AND /redoc ON RENDER
 app = FastAPI(
-    title="Receipt Analyzer Pro – Protected & Live",
-    description="Production-ready receipt AI API with API key protection",
+    title="Receipt Analyzer Pro – Render-Ready Version",
+    description="Production AI API – OCR + JSON extraction",
     version="1.0",
-    openapi_url="/openapi.json",   # ← THIS LINE IS THE MAGIC FIX
+    openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc"
 )
-# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
@@ -36,7 +33,7 @@ async def verify_api_key(x_api_key: str = Header(...)):
 
 @app.get("/")
 async def home():
-    return {"message": "Receipt Analyzer API is LIVE → go to /docs or /redoc"}
+    return {"message": "Receipt Analyzer API is LIVE! Go to /docs"}
 
 @app.get("/quick-insight")
 async def quick_insight(text: str = Query(..., description="Any text for AI")):
@@ -54,14 +51,33 @@ async def analyze_receipt(
         raise HTTPException(400, "Only image files allowed")
 
     contents = await file.read()
-    image_bytes = contents
-ocr_result = reader.readtext(image_bytes, detail=0, paragraph=True)
-ocr_text = "\n".join(ocr_result)
+    
+    # Convert bytes to numpy array for EasyOCR
+    nparr = np.frombuffer(contents, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # EasyOCR – extracts text perfectly
+    ocr_result = reader.readtext(image, detail=0, paragraph=True)
+    ocr_text = "\n".join(ocr_result)
+
+    if len(ocr_text.strip()) < 10:
+        return {"error": "No text detected in image"}
 
     prompt = PromptTemplate.from_template("""
-    Extract and return ONLY valid JSON:
+    Extract receipt data from this text and return ONLY valid JSON:
     {text}
-    { "shop_name": "", "date": "YYYY-MM-DD or null", "total_amount": 0, "items": [{"name": "", "price": 0, "category": ""}] }
+
+    JSON format:
+    {{
+      "shop_name": "string or null",
+      "date": "YYYY-MM-DD or null",
+      "total_amount": number,
+      "currency": "USD or null",
+      "items": [
+        {{"name": "string", "price": number, "category": "Food|Electronics|Clothing|Other"}}
+      ]
+    }}
+    If unsure, use null or best guess.
     """)
 
     chain = prompt | llm
@@ -71,9 +87,14 @@ ocr_text = "\n".join(ocr_result)
     try:
         data = json.loads(response.content)
     except:
-        data = {"raw_ocr": ocr_text[:1000]}
+        data = {"error": "JSON parse failed", "raw_ocr": ocr_text[:1000]}
 
-    return {"type": "POST (protected)", "filename": file.filename, "result": data}
+    return {
+        "type": "POST (protected)",
+        "filename": file.filename,
+        "ocr_text_preview": ocr_text[:200] + "...",
+        "result": data
+    }
 
 @app.get("/receipt/{id}/status")
 async def receipt_status(id: int):
