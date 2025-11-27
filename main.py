@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import pytesseract
 from PIL import Image
 import io
+import easyocr
+reader = easyocr.Reader(['en'], gpu=False)
 
 load_dotenv()
 
@@ -52,8 +54,9 @@ async def analyze_receipt(
         raise HTTPException(400, "Only image files allowed")
 
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents))
-    ocr_text = pytesseract.image_to_string(image)
+    image_bytes = contents
+ocr_result = reader.readtext(image_bytes, detail=0, paragraph=True)
+ocr_text = "\n".join(ocr_result)
 
     prompt = PromptTemplate.from_template("""
     Extract and return ONLY valid JSON:
