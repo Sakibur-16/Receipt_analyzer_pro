@@ -1,8 +1,7 @@
 fastapi
 uvicorn[standard]
 python-multipart
-easyocr
-opencv-python-headless
+pytesseract
 pillow
 langchain-openai
 python-dotenv
