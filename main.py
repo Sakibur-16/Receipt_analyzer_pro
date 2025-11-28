@@ -2,17 +2,9 @@ from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Depends, He
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
-import pytesseract
-from PIL import Image
-import io
 import os
 
 load_dotenv()
-
-# Auto-detect Tesseract (works on Windows AND Linux)
-if os.name == 'nt':  # Windows
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-# Linux (Render) uses default path automatically
 
 app = FastAPI(
     title="Receipt Analyzer Pro – Protected & Live",
@@ -33,7 +25,11 @@ async def verify_api_key(x_api_key: str = Header(...)):
 
 @app.get("/")
 async def home():
-    return {"message": "Receipt Analyzer API is LIVE → go to /docs or /redoc"}
+    return {
+        "message": "Receipt Analyzer API is LIVE",
+        "docs": "/docs",
+        "status": "operational"
+    }
 
 @app.get("/quick-insight")
 async def quick_insight(text: str = Query(..., description="Any text for AI")):
@@ -50,26 +46,35 @@ async def analyze_receipt(
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, "Only image files allowed")
 
+    # TEMPORARY: Using Vision API instead of OCR
+    import base64
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents))
-    ocr_text = pytesseract.image_to_string(image)
-
-    prompt = PromptTemplate.from_template("""
-    Extract and return ONLY valid JSON:
-    {text}
-    {{"shop_name": "", "date": "YYYY-MM-DD or null", "total_amount": 0, "items": [{{"name": "", "price": 0, "category": ""}}]}}
-    """)
-
-    chain = prompt | llm
-    response = chain.invoke({"text": ocr_text})
-
-    import json
+    base64_image = base64.b64encode(contents).decode('utf-8')
+    
+    from langchain_core.messages import HumanMessage
+    
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": "Extract all text from this receipt image and return as JSON: {'shop_name':'','date':'','total_amount':0,'items':[{'name':'','price':0}]}"},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{base64_image}"}
+            }
+        ]
+    )
+    
     try:
+        response = llm.invoke([message])
+        import json
         data = json.loads(response.content)
-    except:
-        data = {"raw_ocr": ocr_text[:1000]}
+    except Exception as e:
+        data = {"error": str(e), "note": "Using Vision API - OCR coming soon"}
 
-    return {"type": "POST (protected)", "filename": file.filename, "result": data}
+    return {
+        "type": "POST (protected, vision-based)", 
+        "filename": file.filename, 
+        "result": data
+    }
 
 @app.get("/receipt/{id}/status")
 async def receipt_status(id: int):
