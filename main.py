@@ -55,7 +55,8 @@ async def analyze_receipt(
     
     message = HumanMessage(
         content=[
-            {"type": "text", "text": "Extract all text from this receipt image and return as JSON: {'shop_name':'','date':'','total_amount':0,'items':[{'name':'','price':0}]}"},
+            {"type": "text", "text": """Extract receipt information from this image. Return ONLY valid JSON with no markdown, no explanation:
+{"shop_name": "store name or empty string", "date": "YYYY-MM-DD or null", "total_amount": 0.00, "items": [{"name": "item", "price": 0.00}]}"""},
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:image/png;base64,{base64_image}"}
@@ -66,9 +67,26 @@ async def analyze_receipt(
     try:
         response = llm.invoke([message])
         import json
-        data = json.loads(response.content)
+        import re
+        
+        # Extract JSON from response (handles markdown code blocks)
+        content = response.content
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        
+        if json_match:
+            data = json.loads(json_match.group())
+        else:
+            # If no JSON found, return raw text
+            data = {
+                "raw_text": content,
+                "note": "Could not parse as JSON - showing raw response"
+            }
     except Exception as e:
-        data = {"error": str(e), "note": "Using Vision API - OCR coming soon"}
+        data = {
+            "error": str(e),
+            "raw_response": response.content if 'response' in locals() else "No response",
+            "note": "Using Vision API - parsing failed"
+        }
 
     return {
         "type": "POST (protected, vision-based)", 
